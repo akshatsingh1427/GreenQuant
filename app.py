@@ -205,14 +205,16 @@ with tab3:
 
         scaler = MinMaxScaler()
         scaled = scaler.fit_transform(data)
-
-        model = build_lstm_model(input_shape=(60, len(features)))
-
+        
+        model = build_lstm_model()
+        
         try:
             model.load_weights("models/lstm_weights.weights.h5")
             ai_ready = True
         except Exception:
+            ai_ready = False
             st.warning("⚠️ AI model not available on cloud. Using indicator-based logic.")
+
 
     if use_ai and AI_AVAILABLE and ai_ready:
         X = scaled[-60:].reshape(1, 60, len(features))
@@ -279,6 +281,7 @@ with tab4:
 # ======================================================
 st.markdown("---")
 st.caption("GreenQuant • Built for learning & demonstration")
+
 
 
 
