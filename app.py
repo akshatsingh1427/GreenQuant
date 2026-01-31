@@ -190,51 +190,61 @@ with tab2:
         st.pyplot(fig_macd)
 
 # ======================================================
-# TAB 3: SIGNAL (AI + FALLBACK)
+# TAB 3: AI SIGNAL (SAFE CLOUD VERSION)
 # ======================================================
 with tab3:
     signal = "➖ NEUTRAL"
-    confidence = 0
+    confidence = 20
+    explanation = "No strong signal detected."
 
-   if use_ai and AI_AVAILABLE and ai_ready:
+    ai_ready = False
+
+    if use_ai and AI_AVAILABLE:
+        features = ["Close", "RSI", "MACD", "MA20", "MA50"]
+        data = df[features].values
+
+        scaler = MinMaxScaler()
+        scaled = scaler.fit_transform(data)
+
         model = build_lstm_model(input_shape=(60, len(features)))
+
         try:
             model.load_weights("models/lstm_weights.weights.h5")
             ai_ready = True
-        except Exception as e:
-            ai_ready = False
-            st.warning("⚠️ AI model unavailable on cloud. Using indicator-based signal.")
+        except Exception:
+            st.warning("⚠️ AI model not available on cloud. Using indicator-based logic.")
 
+    if use_ai and AI_AVAILABLE and ai_ready:
+        X = scaled[-60:].reshape(1, 60, len(features))
+        predicted_return = float(model.predict(X)[0][0])
 
-        scaler = MinMaxScaler()
-        scaled = scaler.fit_transform(df["Close"].values.reshape(-1, 1))
-        X = scaled[-60:].reshape(1, 60, 1)
-        prob = float(model.predict(X)[0][0])
+        volatility = df["Close"].pct_change().rolling(20).std().iloc[-1]
+        confidence = min(abs(predicted_return) / volatility * 20, 100)
 
-        if prob > 0.52:
+        if predicted_return > 0.002:
             signal = "📈 UP"
-        elif prob < 0.48:
+            explanation = "Model predicts positive next-day return."
+        elif predicted_return < -0.002:
             signal = "📉 DOWN"
+            explanation = "Model predicts negative next-day return."
         else:
-            signal = "➖ NEUTRAL"
-
-        confidence = min(abs(prob - 0.5) * 300, 100)
+            explanation = "Predicted return is within market noise."
 
     else:
         if latest_rsi < 30:
             signal = "📈 UP (Oversold)"
             confidence = 40
+            explanation = "RSI indicates oversold conditions."
         elif latest_rsi > 70:
             signal = "📉 DOWN (Overbought)"
             confidence = 40
-        else:
-            signal = "➖ NEUTRAL"
-            confidence = 20
+            explanation = "RSI indicates overbought conditions."
 
     st.markdown(f"""
     <div class="card">
         <h2>{signal}</h2>
         <p><b>Confidence:</b> {confidence:.1f}%</p>
+        <p>{explanation}</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -269,5 +279,6 @@ with tab4:
 # ======================================================
 st.markdown("---")
 st.caption("GreenQuant • Built for learning & demonstration")
+
 
 
