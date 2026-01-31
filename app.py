@@ -25,12 +25,18 @@ st.set_page_config(
 )
 
 # ======================================================
-# GREEN THEME CSS
+# THEME CSS
 # ======================================================
 st.markdown("""
 <style>
 body { background-color: #0b1f17; }
-h1, h2, h3 { color: #00ff9c; }
+
+.hero {
+    background: linear-gradient(135deg, #00ff9c, #00c46a);
+    padding: 25px;
+    border-radius: 22px;
+    color: black;
+}
 
 .metric {
     background: linear-gradient(145deg, #0f2e22, #071a13);
@@ -53,10 +59,15 @@ h1, h2, h3 { color: #00ff9c; }
 """, unsafe_allow_html=True)
 
 # ======================================================
-# HEADER
+# HERO HEADER
 # ======================================================
-st.title("📈 GreenQuant — Stock Intelligence Dashboard")
-st.subheader("Real Market Data • Technical Analysis • Optional AI")
+st.markdown("""
+<div class="hero">
+    <h1>📈 GreenQuant</h1>
+    <h4>Explore Markets • Visualize Trends • AI Insights</h4>
+</div>
+""", unsafe_allow_html=True)
+
 st.caption("⚠️ Educational use only. Not financial advice.")
 st.markdown("---")
 
@@ -85,13 +96,21 @@ period = st.sidebar.selectbox("📅 Time Range", ["6mo", "1y", "2y", "5y"])
 show_intraday = st.sidebar.checkbox("⏱ Show Intraday (Today)", True)
 use_ai = st.sidebar.checkbox("🤖 Use AI Model", True)
 
-st.sidebar.markdown("---")
-st.sidebar.caption("GreenQuant v1.0")
+ma_period = st.sidebar.slider(
+    "📊 Moving Average Period",
+    min_value=5,
+    max_value=100,
+    value=20,
+    step=5
+)
+
+st.sidebar.caption("GreenQuant v1.1")
 
 # ======================================================
 # FETCH DATA
 # ======================================================
-df = yf.download(ticker, period=period)
+with st.spinner("Fetching market data..."):
+    df = yf.download(ticker, period=period)
 
 if df.empty:
     st.error("❌ Failed to fetch data")
@@ -100,21 +119,20 @@ if df.empty:
 # ======================================================
 # INDICATORS
 # ======================================================
-close_series = df["Close"].squeeze()
+close = df["Close"].squeeze()
 
-df["RSI"] = ta.momentum.RSIIndicator(close_series).rsi()
-macd = ta.trend.MACD(close_series)
+df["RSI"] = ta.momentum.RSIIndicator(close).rsi()
+macd = ta.trend.MACD(close)
 df["MACD"] = macd.macd()
-df["MA20"] = df["Close"].rolling(20).mean()
-df["MA50"] = df["Close"].rolling(50).mean()
+df["MA_USER"] = close.rolling(ma_period).mean()
 df.dropna(inplace=True)
 
 # ======================================================
 # METRICS
 # ======================================================
-latest_price = float(df["Close"].iloc[-1])
-latest_rsi = float(df["RSI"].iloc[-1])
-latest_macd = float(df["MACD"].iloc[-1])
+latest_price = df["Close"].iloc[-1].item()
+latest_rsi = df["RSI"].iloc[-1].item()
+latest_macd = df["MACD"].iloc[-1].item()
 latest_date = df.index[-1].date()
 
 c1, c2, c3, c4 = st.columns(4)
@@ -128,16 +146,36 @@ def metric(col, title, value):
         </div>
         """, unsafe_allow_html=True)
 
-metric(c1, "Latest Price", f"{latest_price:.2f}")
-metric(c2, "RSI", f"{latest_rsi:.2f}")
-metric(c3, "MACD", f"{latest_macd:.4f}")
-metric(c4, "Last Date", latest_date)
+metric(c1, "Price", f"{latest_price:.2f}")
+metric(c2, "RSI", f"{latest_rsi:.1f}")
+metric(c3, "MACD", f"{latest_macd:.3f}")
+metric(c4, "Date", latest_date)
+
+# ======================================================
+# MARKET MOOD (FUN UX)
+# ======================================================
+if latest_rsi < 30:
+    mood = "😰 Oversold"
+    mood_color = "#00ff9c"
+elif latest_rsi > 70:
+    mood = "😤 Overbought"
+    mood_color = "#ff4d4d"
+else:
+    mood = "😐 Balanced"
+    mood_color = "#facc15"
+
+st.markdown(f"""
+<div style="padding:15px; border-radius:15px;
+background:{mood_color}; color:black; text-align:center;">
+    <h3>Market Mood: {mood}</h3>
+</div>
+""", unsafe_allow_html=True)
 
 # ======================================================
 # TABS
 # ======================================================
 tab1, tab2, tab3, tab4 = st.tabs([
-    "📈 Price Charts",
+    "📈 Price",
     "📊 Indicators",
     "🤖 Signal",
     "ℹ️ About"
@@ -147,106 +185,64 @@ tab1, tab2, tab3, tab4 = st.tabs([
 # TAB 1: PRICE
 # ======================================================
 with tab1:
-    st.markdown("### Price with Moving Averages")
-
     fig, ax = plt.subplots(figsize=(12, 5))
     ax.plot(df.index, df["Close"], label="Close", linewidth=2)
-    ax.plot(df.index, df["MA20"], label="MA 20", linestyle="--")
-    ax.plot(df.index, df["MA50"], label="MA 50", linestyle="--")
+    ax.plot(df.index, df["MA_USER"], label=f"MA {ma_period}", linewidth=2)
     ax.legend()
-    ax.set_xlabel("Date")
-    ax.set_ylabel("Price")
+    ax.grid(alpha=0.3)
     st.pyplot(fig)
 
     if show_intraday:
         intraday = yf.download(ticker, period="1d", interval="5m")
         if not intraday.empty:
-            st.markdown("### ⏱ Today’s Intraday Price (5-minute)")
             fig_i, ax_i = plt.subplots(figsize=(12, 4))
-            ax_i.plot(intraday.index, intraday["Close"], color="green", linewidth=2)
-            ax_i.set_xlabel("Time")
-            ax_i.set_ylabel("Price")
+            ax_i.plot(intraday.index, intraday["Close"], color="green")
+            ax_i.grid(alpha=0.3)
             st.pyplot(fig_i)
 
 # ======================================================
 # TAB 2: INDICATORS
 # ======================================================
 with tab2:
-    col1, col2 = st.columns(2)
+    c1, c2 = st.columns(2)
 
-    with col1:
-        fig_rsi, ax_rsi = plt.subplots(figsize=(5, 4))
-        ax_rsi.plot(df.index, df["RSI"], color="orange")
-        ax_rsi.axhline(70, linestyle="--")
-        ax_rsi.axhline(30, linestyle="--")
-        ax_rsi.set_title("RSI")
+    with c1:
+        fig_rsi, ax = plt.subplots(figsize=(5,4))
+        ax.plot(df.index, df["RSI"], color="orange")
+        ax.axhline(70, linestyle="--")
+        ax.axhline(30, linestyle="--")
+        ax.set_title("RSI")
         st.pyplot(fig_rsi)
 
-    with col2:
-        fig_macd, ax_macd = plt.subplots(figsize=(5, 4))
-        ax_macd.plot(df.index, df["MACD"], color="lime")
-        ax_macd.axhline(0, linestyle="--")
-        ax_macd.set_title("MACD")
+    with c2:
+        fig_macd, ax = plt.subplots(figsize=(5,4))
+        ax.plot(df.index, df["MACD"], color="lime")
+        ax.axhline(0, linestyle="--")
+        ax.set_title("MACD")
         st.pyplot(fig_macd)
 
 # ======================================================
-# TAB 3: AI SIGNAL (SAFE CLOUD VERSION)
+# TAB 3: SIGNAL
 # ======================================================
 with tab3:
     signal = "➖ NEUTRAL"
     confidence = 20
-    explanation = "No strong signal detected."
 
-    ai_ready = False
-
-    if use_ai and AI_AVAILABLE:
-        features = ["Close", "RSI", "MACD", "MA20", "MA50"]
-        data = df[features].values
-
-        scaler = MinMaxScaler()
-        scaled = scaler.fit_transform(data)
-        
-        model = build_lstm_model()
-        
-        try:
-            model.load_weights("models/lstm_weights.weights.h5")
-            ai_ready = True
-        except Exception:
-            ai_ready = False
-            st.warning("⚠️ AI model not available on cloud. Using indicator-based logic.")
-
-
-    if use_ai and AI_AVAILABLE and ai_ready:
-        X = scaled[-60:].reshape(1, 60, len(features))
-        predicted_return = float(model.predict(X)[0][0])
-
-        volatility = df["Close"].pct_change().rolling(20).std().iloc[-1]
-        confidence = min(abs(predicted_return) / volatility * 20, 100)
-
-        if predicted_return > 0.002:
-            signal = "📈 UP"
-            explanation = "Model predicts positive next-day return."
-        elif predicted_return < -0.002:
-            signal = "📉 DOWN"
-            explanation = "Model predicts negative next-day return."
-        else:
-            explanation = "Predicted return is within market noise."
-
-    else:
-        if latest_rsi < 30:
-            signal = "📈 UP (Oversold)"
-            confidence = 40
-            explanation = "RSI indicates oversold conditions."
-        elif latest_rsi > 70:
-            signal = "📉 DOWN (Overbought)"
-            confidence = 40
-            explanation = "RSI indicates overbought conditions."
+    if latest_rsi < 30:
+        signal = "📈 UP (Oversold)"
+        confidence = 40
+    elif latest_rsi > 70:
+        signal = "📉 DOWN (Overbought)"
+        confidence = 40
 
     st.markdown(f"""
     <div class="card">
         <h2>{signal}</h2>
-        <p><b>Confidence:</b> {confidence:.1f}%</p>
-        <p>{explanation}</p>
+        <p><b>Confidence:</b> {confidence}%</p>
+        <p>
+        RSI: {latest_rsi:.1f}<br>
+        MACD Momentum: {"Positive" if latest_macd > 0 else "Negative"}
+        </p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -257,31 +253,19 @@ with tab4:
     st.markdown("""
 ### About GreenQuant
 
-**GreenQuant** is an educational stock analysis dashboard.
+GreenQuant is an **interactive stock analysis dashboard** designed for learning.
 
-**Features**
-- Real-time (delayed) market data
-- Intraday + historical charts
-- RSI, MACD, Moving Averages
-- Optional AI (LSTM) prediction
-- Works even without AI model
+✨ What makes it fun:
+- Live controls (sliders & toggles)
+- Market mood indicators
+- Interactive charts
+- Clean visual design
 
-**Tech Stack**
-- Python
-- Streamlit
-- yFinance
-- TensorFlow (optional)
-- Matplotlib
-
-⚠️ Not for trading or investment decisions.
+⚠️ Not for real trading.
 """)
 
 # ======================================================
 # FOOTER
 # ======================================================
 st.markdown("---")
-st.caption("GreenQuant • Built for learning & demonstration")
-
-
-
-
+st.caption("GreenQuant • Interactive Edition")
