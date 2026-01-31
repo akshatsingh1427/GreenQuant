@@ -196,9 +196,15 @@ with tab3:
     signal = "➖ NEUTRAL"
     confidence = 0
 
-    if use_ai and AI_AVAILABLE and os.path.exists("models/lstm_weights.weights.h5"):
-        model = build_lstm_model()
-        model.load_weights("models/lstm_weights.weights.h5")
+    if use_ai and AI_AVAILABLE and ai_ready:
+        model = build_lstm_model(input_shape=(60, len(features)))
+        try:
+            model.load_weights("models/lstm_weights.weights.h5")
+            ai_ready = True
+        except Exception as e:
+            ai_ready = False
+            st.warning("⚠️ AI model unavailable on cloud. Using indicator-based signal.")
+
 
         scaler = MinMaxScaler()
         scaled = scaler.fit_transform(df["Close"].values.reshape(-1, 1))
@@ -263,3 +269,4 @@ with tab4:
 # ======================================================
 st.markdown("---")
 st.caption("GreenQuant • Built for learning & demonstration")
+
