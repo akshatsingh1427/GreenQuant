@@ -1,21 +1,14 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import numpy as np
 import plotly.graph_objects as go
 import ta
 
-# ======================================================
-# PAGE CONFIG
-# ======================================================
 st.set_page_config(
     page_title="GreenQuant | Market Intelligence",
     layout="wide"
 )
 
-# ======================================================
-# THEME
-# ======================================================
 st.markdown("""
 <style>
 html, body, .stApp {
@@ -58,192 +51,216 @@ html, body, .stApp {
 </style>
 """, unsafe_allow_html=True)
 
-# ======================================================
-# HEADER
-# ======================================================
 st.markdown("""
 <div class="hero">
     <h1>GreenQuant</h1>
-    <p>Market Data • Technical Analysis • Predictive Insights</p>
+    <p>Market Data • Technical Analysis • Decision Support</p>
 </div>
 """, unsafe_allow_html=True)
 
 st.caption(
-    "Educational and analytical use only. Not financial advice."
+    "This application is intended strictly for educational and analytical purposes. "
+    "It does not provide financial or investment advice."
 )
 
 st.markdown("---")
 
-# ======================================================
-# SIDEBAR
-# ======================================================
 st.sidebar.header("Market Controls")
 
-STOCKS = {
-    "Apple": "AAPL", "Microsoft": "MSFT", "Google": "GOOGL", "Amazon": "AMZN",
-    "Tesla": "TSLA", "NVIDIA": "NVDA", "Meta": "META", "Netflix": "NFLX",
-    "AMD": "AMD", "Intel": "INTC", "Adobe": "ADBE", "Oracle": "ORCL",
-    "Salesforce": "CRM", "Visa": "V", "Mastercard": "MA", "JPMorgan": "JPM",
-    "Coca-Cola": "KO", "Pepsi": "PEP", "Walmart": "WMT", "Disney": "DIS"
+stocks = {
+    "Apple": "AAPL",
+    "Microsoft": "MSFT",
+    "Google": "GOOGL",
+    "Amazon": "AMZN",
+    "Tesla": "TSLA",
+    "NVIDIA": "NVDA",
+    "Meta": "META",
+    "Netflix": "NFLX",
+    "AMD": "AMD",
+    "Intel": "INTC",
+    "Adobe": "ADBE",
+    "Oracle": "ORCL",
+    "Salesforce": "CRM",
+    "Visa": "V",
+    "Mastercard": "MA",
+    "JPMorgan": "JPM",
+    "Coca-Cola": "KO",
+    "Pepsi": "PEP",
+    "Walmart": "WMT",
+    "Disney": "DIS"
 }
 
-selected_companies = st.sidebar.multiselect(
-    "Select Companies (1–3)",
-    options=list(STOCKS.keys()),
-    default=["Apple"]
-)
+company = st.sidebar.selectbox("Select Company", list(stocks.keys()))
+ticker = stocks[company]
 
 period = st.sidebar.selectbox("Time Range", ["6mo", "1y", "2y", "5y"])
-ma_short = st.sidebar.slider("Short MA", 5, 30, 20)
-ma_long = st.sidebar.slider("Long MA", 30, 120, 50)
+ma_period = st.sidebar.slider("Moving Average Period", 10, 100, 20, 5)
 
-if len(selected_companies) == 0:
-    st.warning("Please select at least one company.")
+
+with st.spinner("Loading market data..."):
+    df = yf.download(ticker, period=period)
+
+if df.empty:
+    st.error("Unable to load market data.")
     st.stop()
 
-# ======================================================
-# LOAD & PROCESS DATA FUNCTION
-# ======================================================
-def load_stock(ticker):
-    df = yf.download(ticker, period=period)
-    if df.empty:
-        return None
 
-    df = df.reset_index()
-    df.rename(columns={df.columns[0]: "Date"}, inplace=True)
+df = df.reset_index()
+df.rename(columns={df.columns[0]: "Date"}, inplace=True)
+df["Date"] = pd.to_datetime(df["Date"])
 
-    close = df["Close"]
-    if isinstance(close, pd.DataFrame):
-        close = close.iloc[:, 0]
+close = df["Close"]
+if isinstance(close, pd.DataFrame):
+    close = close.iloc[:, 0]
 
-    close = close.astype(float)
+close = close.astype(float)
+df["Close_1D"] = close
 
-    df["Close"] = close
-    df["RSI"] = ta.momentum.RSIIndicator(close).rsi()
 
-    macd = ta.trend.MACD(close)
-    df["MACD"] = macd.macd()
-    df["MA_S"] = close.rolling(ma_short).mean()
-    df["MA_L"] = close.rolling(ma_long).mean()
+df["RSI"] = ta.momentum.RSIIndicator(df["Close_1D"]).rsi()
 
-    return df.dropna()
+macd_indicator = ta.trend.MACD(df["Close_1D"])
+df["MACD"] = macd_indicator.macd()
+df["MACD_SIGNAL"] = macd_indicator.macd_signal()
+df["MACD_HIST"] = macd_indicator.macd_diff()
 
-# ======================================================
-# LOAD ALL SELECTED STOCKS
-# ======================================================
-stock_data = {}
+df["MA"] = df["Close_1D"].rolling(ma_period).mean()
 
-for name in selected_companies:
-    data = load_stock(STOCKS[name])
-    if data is not None:
-        stock_data[name] = data
+df = df.dropna()
 
-# ======================================================
-# TABS
-# ======================================================
+last_price = df["Close_1D"].iloc[-1]
+last_rsi = df["RSI"].iloc[-1]
+last_macd = df["MACD"].iloc[-1]
+last_date = df["Date"].iloc[-1].date()
+
+c1, c2, c3, c4 = st.columns(4)
+
+def metric(col, title, value):
+    with col:
+        st.markdown(f"""
+        <div class="metric">
+            <div class="metric-title">{title}</div>
+            <div class="metric-value">{value}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+metric(c1, "Last Price", f"{last_price:.2f}")
+metric(c2, "RSI", f"{last_rsi:.1f}")
+metric(c3, "MACD", f"{last_macd:.3f}")
+metric(c4, "Data Date", last_date)
+
+if last_rsi < 30 and last_macd > 0:
+    decision = "BUY"
+    explanation = "Oversold momentum with improving trend strength."
+elif last_rsi > 70 and last_macd < 0:
+    decision = "SELL"
+    explanation = "Overbought conditions with weakening momentum."
+else:
+    decision = "HOLD"
+    explanation = "Indicators suggest neutral or mixed conditions."
+
+st.markdown(f"""
+<div class="notice">
+Decision: {decision}<br>
+{explanation}
+</div>
+""", unsafe_allow_html=True)
+
+
 tab1, tab2, tab3 = st.tabs([
-    "Price Comparison",
-    "Indicators",
-    "AI Prediction"
+    "Price Trend",
+    "RSI Indicator",
+    "MACD Indicator"
 ])
 
-# ======================================================
-# TAB 1 — PRICE COMPARISON
-# ======================================================
 with tab1:
     fig = go.Figure()
 
-    for name, df in stock_data.items():
-        normalized = df["Close"] / df["Close"].iloc[0] * 100
-        fig.add_trace(go.Scatter(
-            x=df["Date"],
-            y=normalized,
-            name=f"{name} (Normalized)",
-            line=dict(width=3)
-        ))
+    fig.add_trace(go.Scatter(
+        x=df["Date"],
+        y=df["Close_1D"],
+        name="Closing Price",
+        line=dict(color="#16a34a", width=3)
+    ))
+
+    fig.add_trace(go.Scatter(
+        x=df["Date"],
+        y=df["MA"],
+        name=f"{ma_period}-Day Moving Average",
+        line=dict(color="#f59e0b", width=3)
+    ))
 
     fig.update_layout(
-        height=520,
-        hovermode="x unified",
-        yaxis_title="Normalized Price (Base = 100)"
+        height=500,
+        hovermode="x unified"
     )
 
     st.plotly_chart(fig, use_container_width=True)
 
     st.info(
-        "This chart compares relative performance. "
-        "All prices are normalized to start at the same value."
+        "This chart shows the historical closing price and its moving average. "
+        "It helps identify trend direction and potential support or resistance zones."
     )
 
-# ======================================================
-# TAB 2 — INDICATORS
-# ======================================================
 with tab2:
-    for name, df in stock_data.items():
-        st.subheader(name)
+    fig = go.Figure()
 
-        fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=df["Date"],
+        y=df["RSI"],
+        name="RSI",
+        line=dict(color="#2563eb", width=3)
+    ))
 
-        fig.add_trace(go.Scatter(
-            x=df["Date"],
-            y=df["RSI"],
-            name="RSI"
-        ))
+    fig.add_hline(y=70, line_dash="dash", line_color="red")
+    fig.add_hline(y=30, line_dash="dash", line_color="green")
 
-        fig.add_hline(y=70, line_dash="dash", line_color="red")
-        fig.add_hline(y=30, line_dash="dash", line_color="green")
+    fig.update_layout(
+        height=400,
+        yaxis_title="RSI Value"
+    )
 
-        fig.update_layout(height=300)
+    st.plotly_chart(fig, use_container_width=True)
 
-        st.plotly_chart(fig, use_container_width=True)
+    st.info(
+        "The Relative Strength Index (RSI) measures momentum. "
+        "Values above 70 indicate overbought conditions, while values below 30 indicate oversold conditions."
+    )
 
-# ======================================================
-# TAB 3 — AI PREDICTION (NO ML CRASHES)
-# ======================================================
 with tab3:
-    for name, df in stock_data.items():
-        latest = df.iloc[-1]
+    fig = go.Figure()
 
-        score = 0
+    fig.add_trace(go.Scatter(
+        x=df["Date"],
+        y=df["MACD"],
+        name="MACD",
+        line=dict(color="#16a34a", width=2)
+    ))
 
-        # RSI contribution
-        if latest["RSI"] < 30:
-            score += 2
-        elif latest["RSI"] > 70:
-            score -= 2
+    fig.add_trace(go.Scatter(
+        x=df["Date"],
+        y=df["MACD_SIGNAL"],
+        name="Signal Line",
+        line=dict(color="#dc2626", width=2)
+    ))
 
-        # Trend contribution
-        if latest["MA_S"] > latest["MA_L"]:
-            score += 1
-        else:
-            score -= 1
+    fig.add_trace(go.Bar(
+        x=df["Date"],
+        y=df["MACD_HIST"],
+        name="Histogram",
+        marker_color="#9ca3af"
+    ))
 
-        # MACD contribution
-        if latest["MACD"] > 0:
-            score += 1
-        else:
-            score -= 1
+    fig.update_layout(
+        height=400
+    )
 
-        if score >= 3:
-            decision = "BUY"
-        elif score <= -3:
-            decision = "SELL"
-        else:
-            decision = "HOLD"
+    st.plotly_chart(fig, use_container_width=True)
 
-        confidence = min(abs(score) * 25, 100)
+    st.info(
+        "The MACD indicator shows trend strength and momentum. "
+        "Crossovers and histogram changes can signal potential trend reversals."
+    )
 
-        st.markdown(f"""
-        <div class="notice">
-        <b>{name}</b><br>
-        Decision: {decision}<br>
-        Confidence: {confidence}%<br>
-        RSI: {latest['RSI']:.1f} | MACD: {latest['MACD']:.2f}
-        </div>
-        """, unsafe_allow_html=True)
-
-# ======================================================
-# FOOTER
-# ======================================================
 st.markdown("---")
-st.caption("GreenQuant | Comparison & AI Module")
+st.caption("GreenQuant | Technical Indicator Suite")
