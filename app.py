@@ -15,7 +15,7 @@ st.set_page_config(
 )
 
 # ======================================================
-# LIGHT GREEN THEME (CLOUD SAFE)
+# THEME
 # ======================================================
 st.markdown("""
 <style>
@@ -23,10 +23,6 @@ html, body, .stApp {
     background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%);
     color: #064e3b;
     font-family: Arial, sans-serif;
-}
-
-section.main > div {
-    background: transparent !important;
 }
 
 .hero {
@@ -81,7 +77,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.caption(
-    "This application is intended strictly for educational and analytical purposes. "
+    "This application is for educational and analytical purposes only. "
     "It does not provide financial or investment advice."
 )
 
@@ -114,17 +110,20 @@ ma_period = st.sidebar.slider("Moving Average Period", 10, 100, 20, 5)
 with st.spinner("Loading market data..."):
     df = yf.download(ticker, period=period)
 
-if df.empty or "Close" not in df:
+if df.empty or "Close" not in df.columns:
     st.error("Market data could not be loaded.")
     st.stop()
 
 # ======================================================
-# INDICATORS
+# FIX: FORCE 1-D SERIES (IMPORTANT)
 # ======================================================
-close = df["Close"].astype(float)
+close = pd.Series(df["Close"].values, index=df.index)
 
-df["RSI"] = ta.momentum.RSIIndicator(close).rsi()
-df["MACD"] = ta.trend.MACD(close).macd()
+# ======================================================
+# INDICATORS (SAFE)
+# ======================================================
+df["RSI"] = ta.momentum.RSIIndicator(close=close).rsi()
+df["MACD"] = ta.trend.MACD(close=close).macd()
 df["MA"] = close.rolling(ma_period).mean()
 df["Returns"] = close.pct_change()
 df["Volatility"] = df["Returns"].rolling(20).std()
@@ -157,7 +156,7 @@ metric(c3, "MACD", f"{last_macd:.2f}")
 metric(c4, "Volatility (20d)", f"{last_vol:.2f}%")
 
 # ======================================================
-# AI BUY / HOLD / SELL (EXPLAINABLE)
+# AI BUY / HOLD / SELL
 # ======================================================
 score = 0
 if last_rsi < 30: score += 1
@@ -170,10 +169,10 @@ if score >= 2:
     explanation = "Momentum and trend indicators suggest potential upside."
 elif score <= -1:
     decision = "SELL"
-    explanation = "Momentum indicators show potential downside risk."
+    explanation = "Momentum indicators suggest downside risk."
 else:
     decision = "HOLD"
-    explanation = "Signals are mixed, suggesting a neutral market condition."
+    explanation = "Indicators are mixed, suggesting neutral conditions."
 
 confidence = min(abs(score) * 25 + 25, 90)
 
@@ -187,55 +186,45 @@ st.markdown(f"""
 # ======================================================
 # TABS
 # ======================================================
-tab1, tab2, tab3 = st.tabs([
-    "Price Analysis",
-    "Technical Indicators",
-    "Interpretation"
-])
+tab1, tab2 = st.tabs(["Price Analysis", "Technical Indicators"])
 
 # ======================================================
-# TAB 1: INTERACTIVE PRICE GRAPH
+# PRICE GRAPH (WILL NOT DISAPPEAR)
 # ======================================================
 with tab1:
-    st.subheader("Price Trend with Moving Average")
-
     fig = go.Figure()
 
     fig.add_trace(go.Scatter(
         x=df.index,
         y=df["Close"],
         name="Closing Price",
-        line=dict(color="#16a34a", width=2),
-        hovertemplate="Date: %{x}<br>Price: %{y:.2f}<extra></extra>"
+        line=dict(color="#16a34a", width=2)
     ))
 
     fig.add_trace(go.Scatter(
         x=df.index,
         y=df["MA"],
         name=f"{ma_period}-Day Moving Average",
-        line=dict(color="#fb7185", width=2),
-        hovertemplate="Date: %{x}<br>MA: %{y:.2f}<extra></extra>"
+        line=dict(color="#fb7185", width=2)
     ))
 
     fig.update_layout(
         height=520,
         hovermode="x unified",
-        margin=dict(l=40, r=40, t=40, b=40),
         plot_bgcolor="white",
         paper_bgcolor="white",
-        xaxis=dict(showgrid=True),
-        yaxis=dict(showgrid=True)
+        margin=dict(l=40, r=40, t=40, b=40)
     )
 
     st.plotly_chart(fig, use_container_width=True)
 
     st.info(
-        "This interactive chart shows the historical closing price and its moving average. "
-        "You can zoom, pan, and hover to inspect price behavior at specific dates."
+        "This interactive chart displays the historical closing price and its moving average. "
+        "You can zoom, pan, and hover to inspect market behavior at specific points in time."
     )
 
 # ======================================================
-# TAB 2: INDICATORS
+# INDICATORS
 # ======================================================
 with tab2:
     col1, col2 = st.columns(2)
@@ -243,33 +232,10 @@ with tab2:
     with col1:
         st.subheader("Relative Strength Index (RSI)")
         st.line_chart(df["RSI"])
-        st.caption(
-            "RSI measures momentum. Values below 30 may indicate oversold conditions, "
-            "while values above 70 may indicate overbought conditions."
-        )
 
     with col2:
         st.subheader("MACD Indicator")
         st.line_chart(df["MACD"])
-        st.caption(
-            "MACD represents trend direction and momentum. "
-            "Positive values suggest bullish momentum; negative values suggest bearish momentum."
-        )
-
-# ======================================================
-# TAB 3: INTERPRETATION
-# ======================================================
-with tab3:
-    st.markdown("""
-    ### How to Read These Signals
-
-    - **Price vs Moving Average** indicates trend direction.
-    - **RSI** highlights momentum extremes.
-    - **MACD** reflects trend strength and reversals.
-    - **Volatility** measures recent price instability.
-
-    The AI recommendation combines these indicators into a simple, explainable decision.
-    """)
 
 # ======================================================
 # FOOTER
