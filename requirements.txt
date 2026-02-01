@@ -1,8 +1,6 @@
-streamlit
-yfinance
-pandas
-numpy
-matplotlib
-scikit-learn
-ta
-tensorflow
+streamlit>=1.30
+yfinance>=0.2.36
+pandas>=2.0
+numpy>=1.24
+plotly>=5.18
+ta>=0.11
