@@ -28,7 +28,6 @@ html, body, .stApp {
     background: linear-gradient(135deg, #4ade80, #22c55e);
     padding: 28px;
     border-radius: 20px;
-    color: #052e16;
 }
 
 .metric {
@@ -50,7 +49,7 @@ html, body, .stApp {
 }
 
 .notice {
-    background: #fef08a;
+    background: #fde047;
     padding: 14px;
     border-radius: 14px;
     color: #422006;
@@ -70,7 +69,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.caption(
-    "This platform is for educational and analytical purposes only. "
+    "This application is intended strictly for educational and analytical purposes. "
     "It does not provide financial or investment advice."
 )
 
@@ -114,41 +113,46 @@ ma_period = st.sidebar.slider("Moving Average Period", 10, 100, 20, 5)
 # LOAD DATA (SAFE)
 # ======================================================
 with st.spinner("Loading market data..."):
-    df = yf.download(ticker, period=period)
+    df = yf.download(ticker, period=period, auto_adjust=False)
 
 if df.empty:
     st.error("Unable to load market data.")
     st.stop()
 
 # ======================================================
-# FIX DATE COLUMN (CRITICAL FIX)
+# FIX DATE
 # ======================================================
 df = df.reset_index()
 
-# Detect datetime column safely
 if "Date" not in df.columns:
-    if "Datetime" in df.columns:
-        df.rename(columns={"Datetime": "Date"}, inplace=True)
-    else:
-        df.rename(columns={df.columns[0]: "Date"}, inplace=True)
+    df.rename(columns={df.columns[0]: "Date"}, inplace=True)
 
 df["Date"] = pd.to_datetime(df["Date"])
-df["Close"] = df["Close"].astype(float)
-
-df = df.sort_values("Date")
 
 # ======================================================
-# INDICATORS (SAFE 1D SERIES)
+# FIX CLOSE (CRITICAL PART)
 # ======================================================
-df["RSI"] = ta.momentum.RSIIndicator(df["Close"]).rsi()
-df["MA"] = df["Close"].rolling(ma_period).mean()
+close = df["Close"]
+
+# 🔥 THIS IS THE FIX 🔥
+if isinstance(close, pd.DataFrame):
+    close = close.iloc[:, 0]
+
+close = close.astype(float)
+
+# ======================================================
+# INDICATORS (NOW SAFE)
+# ======================================================
+df["Close_1D"] = close
+df["RSI"] = ta.momentum.RSIIndicator(close).rsi()
+df["MA"] = close.rolling(ma_period).mean()
 
 df = df.dropna()
 
 # ======================================================
 # METRICS
 # ======================================================
-last_price = df["Close"].iloc[-1]
+last_price = df["Close_1D"].iloc[-1]
 last_rsi = df["RSI"].iloc[-1]
 last_date = df["Date"].iloc[-1].date()
 
@@ -168,17 +172,17 @@ metric(c2, "RSI", f"{last_rsi:.1f}")
 metric(c3, "Data Date", last_date)
 
 # ======================================================
-# BUY / SELL LOGIC
+# DECISION LOGIC
 # ======================================================
 if last_rsi < 30:
     decision = "BUY"
-    explanation = "The stock appears oversold based on RSI."
+    explanation = "The stock appears oversold based on momentum indicators."
 elif last_rsi > 70:
     decision = "SELL"
-    explanation = "The stock appears overbought based on RSI."
+    explanation = "The stock appears overbought based on momentum indicators."
 else:
     decision = "HOLD"
-    explanation = "Momentum indicators suggest neutral conditions."
+    explanation = "Momentum indicators suggest neutral market conditions."
 
 st.markdown(f"""
 <div class="notice">
@@ -192,14 +196,11 @@ Decision: {decision}<br>
 # ======================================================
 st.subheader("Price Trend with Moving Average")
 
-y_min = df["Close"].min() * 0.97
-y_max = df["Close"].max() * 1.03
-
 fig = go.Figure()
 
 fig.add_trace(go.Scatter(
     x=df["Date"],
-    y=df["Close"],
+    y=df["Close_1D"],
     name="Closing Price",
     line=dict(color="#16a34a", width=3)
 ))
@@ -215,19 +216,18 @@ fig.update_layout(
     height=520,
     plot_bgcolor="white",
     paper_bgcolor="white",
-    yaxis=dict(range=[y_min, y_max]),
     hovermode="x unified"
 )
 
 st.plotly_chart(fig, use_container_width=True)
 
 st.info(
-    "This chart displays the historical closing price and a moving average. "
-    "Hover over the chart to view exact prices by date."
+    "This chart displays the historical closing price and its moving average. "
+    "Hover over the graph to inspect values by date."
 )
 
 # ======================================================
 # FOOTER
 # ======================================================
 st.markdown("---")
-st.caption("GreenQuant | Stable Cloud Release")
+st.caption("GreenQuant | Stable Cloud Build")
