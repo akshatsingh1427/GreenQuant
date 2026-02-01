@@ -1,7 +1,6 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import numpy as np
 import plotly.graph_objects as go
 import ta
 
@@ -110,42 +109,40 @@ period = st.sidebar.selectbox("Time Range", ["6mo", "1y", "2y", "5y"])
 ma_period = st.sidebar.slider("Moving Average Period", 10, 100, 20, 5)
 
 # ======================================================
-# LOAD DATA (SAFE)
+# LOAD DATA
 # ======================================================
 with st.spinner("Loading market data..."):
-    df = yf.download(ticker, period=period, auto_adjust=False)
+    df = yf.download(ticker, period=period)
 
 if df.empty:
     st.error("Unable to load market data.")
     st.stop()
 
 # ======================================================
-# FIX DATE
+# FIX DATE + CLOSE (CRITICAL & SAFE)
 # ======================================================
 df = df.reset_index()
-
-if "Date" not in df.columns:
-    df.rename(columns={df.columns[0]: "Date"}, inplace=True)
-
+df.rename(columns={df.columns[0]: "Date"}, inplace=True)
 df["Date"] = pd.to_datetime(df["Date"])
 
-# ======================================================
-# FIX CLOSE (CRITICAL PART)
-# ======================================================
 close = df["Close"]
-
-# 🔥 THIS IS THE FIX 🔥
 if isinstance(close, pd.DataFrame):
     close = close.iloc[:, 0]
 
 close = close.astype(float)
+df["Close_1D"] = close
 
 # ======================================================
-# INDICATORS (NOW SAFE)
+# INDICATORS
 # ======================================================
-df["Close_1D"] = close
-df["RSI"] = ta.momentum.RSIIndicator(close).rsi()
-df["MA"] = close.rolling(ma_period).mean()
+df["RSI"] = ta.momentum.RSIIndicator(df["Close_1D"]).rsi()
+
+macd_indicator = ta.trend.MACD(df["Close_1D"])
+df["MACD"] = macd_indicator.macd()
+df["MACD_SIGNAL"] = macd_indicator.macd_signal()
+df["MACD_HIST"] = macd_indicator.macd_diff()
+
+df["MA"] = df["Close_1D"].rolling(ma_period).mean()
 
 df = df.dropna()
 
@@ -154,9 +151,10 @@ df = df.dropna()
 # ======================================================
 last_price = df["Close_1D"].iloc[-1]
 last_rsi = df["RSI"].iloc[-1]
+last_macd = df["MACD"].iloc[-1]
 last_date = df["Date"].iloc[-1].date()
 
-c1, c2, c3 = st.columns(3)
+c1, c2, c3, c4 = st.columns(4)
 
 def metric(col, title, value):
     with col:
@@ -169,20 +167,21 @@ def metric(col, title, value):
 
 metric(c1, "Last Price", f"{last_price:.2f}")
 metric(c2, "RSI", f"{last_rsi:.1f}")
-metric(c3, "Data Date", last_date)
+metric(c3, "MACD", f"{last_macd:.3f}")
+metric(c4, "Data Date", last_date)
 
 # ======================================================
-# DECISION LOGIC
+# DECISION LOGIC (RSI + MACD)
 # ======================================================
-if last_rsi < 30:
+if last_rsi < 30 and last_macd > 0:
     decision = "BUY"
-    explanation = "The stock appears oversold based on momentum indicators."
-elif last_rsi > 70:
+    explanation = "Oversold momentum with improving trend strength."
+elif last_rsi > 70 and last_macd < 0:
     decision = "SELL"
-    explanation = "The stock appears overbought based on momentum indicators."
+    explanation = "Overbought conditions with weakening momentum."
 else:
     decision = "HOLD"
-    explanation = "Momentum indicators suggest neutral market conditions."
+    explanation = "Indicators suggest neutral or mixed conditions."
 
 st.markdown(f"""
 <div class="notice">
@@ -192,42 +191,114 @@ Decision: {decision}<br>
 """, unsafe_allow_html=True)
 
 # ======================================================
-# GRAPH (GUARANTEED VISIBLE)
+# TABS
 # ======================================================
-st.subheader("Price Trend with Moving Average")
+tab1, tab2, tab3 = st.tabs([
+    "Price Trend",
+    "RSI Indicator",
+    "MACD Indicator"
+])
 
-fig = go.Figure()
+# ======================================================
+# PRICE GRAPH
+# ======================================================
+with tab1:
+    fig = go.Figure()
 
-fig.add_trace(go.Scatter(
-    x=df["Date"],
-    y=df["Close_1D"],
-    name="Closing Price",
-    line=dict(color="#16a34a", width=3)
-))
+    fig.add_trace(go.Scatter(
+        x=df["Date"],
+        y=df["Close_1D"],
+        name="Closing Price",
+        line=dict(color="#16a34a", width=3)
+    ))
 
-fig.add_trace(go.Scatter(
-    x=df["Date"],
-    y=df["MA"],
-    name=f"{ma_period}-Day Moving Average",
-    line=dict(color="#f59e0b", width=3)
-))
+    fig.add_trace(go.Scatter(
+        x=df["Date"],
+        y=df["MA"],
+        name=f"{ma_period}-Day Moving Average",
+        line=dict(color="#f59e0b", width=3)
+    ))
 
-fig.update_layout(
-    height=520,
-    plot_bgcolor="white",
-    paper_bgcolor="white",
-    hovermode="x unified"
-)
+    fig.update_layout(
+        height=500,
+        hovermode="x unified"
+    )
 
-st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True)
 
-st.info(
-    "This chart displays the historical closing price and its moving average. "
-    "Hover over the graph to inspect values by date."
-)
+    st.info(
+        "This chart shows the historical closing price and its moving average. "
+        "It helps identify trend direction and potential support or resistance zones."
+    )
+
+# ======================================================
+# RSI GRAPH
+# ======================================================
+with tab2:
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=df["Date"],
+        y=df["RSI"],
+        name="RSI",
+        line=dict(color="#2563eb", width=3)
+    ))
+
+    fig.add_hline(y=70, line_dash="dash", line_color="red")
+    fig.add_hline(y=30, line_dash="dash", line_color="green")
+
+    fig.update_layout(
+        height=400,
+        yaxis_title="RSI Value"
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.info(
+        "The Relative Strength Index (RSI) measures momentum. "
+        "Values above 70 indicate overbought conditions, while values below 30 indicate oversold conditions."
+    )
+
+# ======================================================
+# MACD GRAPH
+# ======================================================
+with tab3:
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=df["Date"],
+        y=df["MACD"],
+        name="MACD",
+        line=dict(color="#16a34a", width=2)
+    ))
+
+    fig.add_trace(go.Scatter(
+        x=df["Date"],
+        y=df["MACD_SIGNAL"],
+        name="Signal Line",
+        line=dict(color="#dc2626", width=2)
+    ))
+
+    fig.add_trace(go.Bar(
+        x=df["Date"],
+        y=df["MACD_HIST"],
+        name="Histogram",
+        marker_color="#9ca3af"
+    ))
+
+    fig.update_layout(
+        height=400
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.info(
+        "The MACD indicator shows trend strength and momentum. "
+        "Crossovers and histogram changes can signal potential trend reversals."
+    )
 
 # ======================================================
 # FOOTER
 # ======================================================
 st.markdown("---")
-st.caption("GreenQuant | Stable Cloud Build")
+st.caption("GreenQuant | Technical Indicator Suite")
