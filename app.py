@@ -10,34 +10,34 @@ import ta
 # ======================================================
 st.set_page_config(
     page_title="GreenQuant | Market Intelligence",
-    page_icon="📊",
     layout="wide"
 )
 
 # ======================================================
-# LIGHT GREEN THEME
+# THEME
 # ======================================================
 st.markdown("""
 <style>
 html, body, .stApp {
-    background: linear-gradient(180deg, #ecfdf5, #d1fae5);
+    background-color: #e8fdf3;
     color: #064e3b;
-    font-family: "Segoe UI", sans-serif;
+    font-family: Arial, sans-serif;
 }
 
 .hero {
-    background: linear-gradient(135deg, #6ee7b7, #34d399);
-    padding: 30px;
-    border-radius: 22px;
-    box-shadow: 0 12px 28px rgba(0,0,0,0.12);
+    background: linear-gradient(135deg, #4ade80, #22c55e);
+    padding: 28px;
+    border-radius: 20px;
+    color: #052e16;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
 }
 
 .metric {
-    background: white;
-    border-radius: 18px;
-    padding: 18px;
+    background: #ffffff;
+    padding: 16px;
+    border-radius: 16px;
     text-align: center;
-    box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.1);
 }
 
 .metric-title {
@@ -47,21 +47,16 @@ html, body, .stApp {
 
 .metric-value {
     font-size: 26px;
-    font-weight: 700;
+    font-weight: bold;
     color: #15803d;
 }
 
-.banner {
-    background: linear-gradient(135deg, #fde047, #facc15);
+.notice {
+    background: #fef08a;
     padding: 14px;
     border-radius: 14px;
-    text-align: center;
-    font-weight: 600;
     color: #422006;
-}
-
-[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #ecfdf5, #d1fae5);
+    font-weight: 600;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -72,13 +67,13 @@ html, body, .stApp {
 st.markdown("""
 <div class="hero">
     <h1>GreenQuant</h1>
-    <p>Real-Time Market Data • Technical Analysis • Decision Support</p>
+    <p>Market Data • Technical Analysis • Decision Support</p>
 </div>
 """, unsafe_allow_html=True)
 
 st.caption(
-    "This platform is designed strictly for educational and analytical purposes. "
-    "It does not constitute financial advice."
+    "This platform is for educational and analytical purposes only. "
+    "It does not provide financial or investment advice."
 )
 
 st.markdown("---")
@@ -89,13 +84,26 @@ st.markdown("---")
 st.sidebar.header("Market Controls")
 
 stocks = {
-    "Apple": "AAPL", "Microsoft": "MSFT", "Google": "GOOGL", "Amazon": "AMZN",
-    "Tesla": "TSLA", "NVIDIA": "NVDA", "Meta": "META", "Netflix": "NFLX",
-    "AMD": "AMD", "Intel": "INTC", "IBM": "IBM", "Oracle": "ORCL",
-    "Adobe": "ADBE", "Salesforce": "CRM", "PayPal": "PYPL",
-    "Uber": "UBER", "Airbnb": "ABNB", "Spotify": "SPOT",
-    "Qualcomm": "QCOM", "Cisco": "CSCO", "Broadcom": "AVGO",
-    "JPMorgan": "JPM", "Visa": "V", "Mastercard": "MA"
+    "Apple": "AAPL",
+    "Microsoft": "MSFT",
+    "Google": "GOOGL",
+    "Amazon": "AMZN",
+    "Tesla": "TSLA",
+    "NVIDIA": "NVDA",
+    "Meta": "META",
+    "Netflix": "NFLX",
+    "AMD": "AMD",
+    "Intel": "INTC",
+    "IBM": "IBM",
+    "Adobe": "ADBE",
+    "Oracle": "ORCL",
+    "Salesforce": "CRM",
+    "PayPal": "PYPL",
+    "Uber": "UBER",
+    "Airbnb": "ABNB",
+    "Visa": "V",
+    "Mastercard": "MA",
+    "JPMorgan": "JPM"
 }
 
 company = st.sidebar.selectbox("Select Company", list(stocks.keys()))
@@ -105,36 +113,38 @@ period = st.sidebar.selectbox("Time Range", ["6mo", "1y", "2y", "5y"])
 ma_period = st.sidebar.slider("Moving Average Period", 10, 100, 20, 5)
 
 # ======================================================
-# FETCH DATA
+# LOAD DATA (SAFE)
 # ======================================================
 with st.spinner("Loading market data..."):
-    df = yf.download(ticker, period=period, progress=False)
+    df = yf.download(ticker, period=period, auto_adjust=False)
 
-if df.empty or "Close" not in df.columns:
-    st.error("Market data could not be loaded.")
+if df.empty or "Close" not in df:
+    st.error("Unable to load market data.")
     st.stop()
 
 # ======================================================
-# DATA SANITIZATION (CRITICAL)
+# DATA CLEANING (CRITICAL)
 # ======================================================
-close = pd.Series(df["Close"].to_numpy().flatten(), index=df.index)
+df = df.reset_index()
+df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+df = df.dropna(subset=["Date"])
 
-df = df.assign(Close=close)
-df["RSI"] = ta.momentum.RSIIndicator(close).rsi()
-df["MACD"] = ta.trend.MACD(close).macd()
-df["MA"] = close.rolling(ma_period).mean()
+df["Close"] = df["Close"].astype(float)
+df = df.sort_values("Date")
+
+df["RSI"] = ta.momentum.RSIIndicator(df["Close"]).rsi()
+df["MA"] = df["Close"].rolling(ma_period).mean()
 
 df = df.dropna()
 
 # ======================================================
 # METRICS
 # ======================================================
-last_price = float(df["Close"].iloc[-1])
-last_rsi = float(df["RSI"].iloc[-1])
-last_macd = float(df["MACD"].iloc[-1])
-last_date = df.index[-1].date()
+last_price = df["Close"].iloc[-1]
+last_rsi = df["RSI"].iloc[-1]
+last_date = df["Date"].iloc[-1].date()
 
-c1, c2, c3, c4 = st.columns(4)
+c1, c2, c3 = st.columns(3)
 
 def metric(col, title, value):
     with col:
@@ -147,101 +157,70 @@ def metric(col, title, value):
 
 metric(c1, "Last Price", f"{last_price:.2f}")
 metric(c2, "RSI", f"{last_rsi:.1f}")
-metric(c3, "MACD", f"{last_macd:.2f}")
-metric(c4, "Data Date", last_date)
+metric(c3, "Data Date", last_date)
 
 # ======================================================
-# AI-STYLE DECISION ENGINE
+# DECISION ENGINE
 # ======================================================
-score = 0
-if last_rsi < 30: score += 1
-if last_rsi > 70: score -= 1
-if last_macd > 0: score += 1
-if last_price > df["MA"].iloc[-1]: score += 1
-
-if score >= 2:
+if last_rsi < 30:
     decision = "BUY"
-    explanation = "Momentum and trend indicators align positively."
-elif score <= -1:
+    explanation = "The stock appears oversold based on RSI."
+elif last_rsi > 70:
     decision = "SELL"
-    explanation = "Momentum indicators indicate downside risk."
+    explanation = "The stock appears overbought based on RSI."
 else:
     decision = "HOLD"
-    explanation = "Indicators are mixed, suggesting neutral conditions."
-
-confidence = min(abs(score) * 25 + 25, 90)
+    explanation = "Momentum indicators suggest neutral conditions."
 
 st.markdown(f"""
-<div class="banner">
-    Recommendation: <strong>{decision}</strong> | Confidence: {confidence:.0f}%  
-    <br>{explanation}
+<div class="notice">
+Decision: {decision}<br>
+{explanation}
 </div>
 """, unsafe_allow_html=True)
 
 # ======================================================
-# INTERACTIVE PRICE GRAPH (FIXED)
+# GRAPH (FIXED & VISIBLE)
 # ======================================================
 st.subheader("Price Trend with Moving Average")
 
+y_min = df["Close"].min() * 0.97
+y_max = df["Close"].max() * 1.03
+
 fig = go.Figure()
 
-fig.add_trace(go.Scatter(
-    x=df.index,
+fig.add_trace(go.Scattergl(
+    x=df["Date"],
     y=df["Close"],
-    mode="lines",
     name="Closing Price",
-    line=dict(color="#16a34a", width=2),
-    hovertemplate="Date: %{x}<br>Price: %{y:.2f}<extra></extra>"
+    line=dict(color="#16a34a", width=3)
 ))
 
-fig.add_trace(go.Scatter(
-    x=df.index,
+fig.add_trace(go.Scattergl(
+    x=df["Date"],
     y=df["MA"],
-    mode="lines",
     name=f"{ma_period}-Day Moving Average",
-    line=dict(color="#f97316", width=2),
-    hovertemplate="Date: %{x}<br>MA: %{y:.2f}<extra></extra>"
+    line=dict(color="#f97316", width=3)
 ))
 
 fig.update_layout(
-    autosize=True,
     height=520,
-    hovermode="x unified",
     plot_bgcolor="white",
     paper_bgcolor="white",
-    yaxis=dict(
-        range=[
-            df["Close"].min() * 0.95,
-            df["Close"].max() * 1.05
-        ]
-    ),
-    margin=dict(l=40, r=40, t=40, b=40)
+    margin=dict(l=50, r=50, t=40, b=40),
+    yaxis=dict(range=[y_min, y_max]),
+    hovermode="x unified"
 )
 
 st.plotly_chart(fig, use_container_width=True)
 
 st.info(
-    "This chart displays the historical closing price along with its moving average. "
-    "Hover over the graph to inspect exact values and analyze trend behavior."
+    "This chart displays the historical closing price along with a moving average. "
+    "Use the hover tool to inspect prices on specific dates."
 )
-
-# ======================================================
-# INDICATORS
-# ======================================================
-st.subheader("Technical Indicators")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    st.line_chart(df["RSI"])
-    st.caption("RSI measures momentum and overbought/oversold conditions.")
-
-with col2:
-    st.line_chart(df["MACD"])
-    st.caption("MACD reflects trend direction and momentum strength.")
 
 # ======================================================
 # FOOTER
 # ======================================================
 st.markdown("---")
-st.caption("GreenQuant | Interactive Market Intelligence Platform")
+st.caption("GreenQuant | Stable Release")
