@@ -15,7 +15,7 @@ st.set_page_config(
 )
 
 # ======================================================
-# THEME
+# THEME (LIGHT GREEN)
 # ======================================================
 st.markdown("""
 <style>
@@ -108,16 +108,17 @@ ma_period = st.sidebar.slider("Moving Average Period", 10, 100, 20, 5)
 # FETCH DATA
 # ======================================================
 with st.spinner("Loading market data..."):
-    df = yf.download(ticker, period=period)
+    df = yf.download(ticker, period=period, progress=False)
 
 if df.empty or "Close" not in df.columns:
     st.error("Market data could not be loaded.")
     st.stop()
 
 # ======================================================
-# FIX: FORCE 1-D SERIES (IMPORTANT)
+# ✅ CRITICAL FIX — FORCE 1-D CLOSE SERIES
 # ======================================================
-close = pd.Series(df["Close"].values, index=df.index)
+close = df["Close"].to_numpy().ravel()
+close = pd.Series(close, index=df.index, name="Close")
 
 # ======================================================
 # INDICATORS (SAFE)
@@ -156,7 +157,7 @@ metric(c3, "MACD", f"{last_macd:.2f}")
 metric(c4, "Volatility (20d)", f"{last_vol:.2f}%")
 
 # ======================================================
-# AI BUY / HOLD / SELL
+# AI BUY / HOLD / SELL (EXPLAINABLE)
 # ======================================================
 score = 0
 if last_rsi < 30: score += 1
@@ -189,7 +190,7 @@ st.markdown(f"""
 tab1, tab2 = st.tabs(["Price Analysis", "Technical Indicators"])
 
 # ======================================================
-# PRICE GRAPH (WILL NOT DISAPPEAR)
+# PRICE GRAPH (WILL ALWAYS SHOW)
 # ======================================================
 with tab1:
     fig = go.Figure()
@@ -198,14 +199,16 @@ with tab1:
         x=df.index,
         y=df["Close"],
         name="Closing Price",
-        line=dict(color="#16a34a", width=2)
+        line=dict(color="#16a34a", width=2),
+        hovertemplate="Date: %{x}<br>Price: %{y:.2f}<extra></extra>"
     ))
 
     fig.add_trace(go.Scatter(
         x=df.index,
         y=df["MA"],
         name=f"{ma_period}-Day Moving Average",
-        line=dict(color="#fb7185", width=2)
+        line=dict(color="#fb7185", width=2),
+        hovertemplate="Date: %{x}<br>MA: %{y:.2f}<extra></extra>"
     ))
 
     fig.update_layout(
@@ -219,8 +222,8 @@ with tab1:
     st.plotly_chart(fig, use_container_width=True)
 
     st.info(
-        "This interactive chart displays the historical closing price and its moving average. "
-        "You can zoom, pan, and hover to inspect market behavior at specific points in time."
+        "This interactive chart shows the historical closing price and its moving average. "
+        "Hover to inspect values, zoom to analyze specific periods."
     )
 
 # ======================================================
