@@ -29,7 +29,6 @@ html, body, .stApp {
     padding: 28px;
     border-radius: 20px;
     color: #052e16;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
 }
 
 .metric {
@@ -37,7 +36,6 @@ html, body, .stApp {
     padding: 16px;
     border-radius: 16px;
     text-align: center;
-    box-shadow: 0 6px 16px rgba(0,0,0,0.1);
 }
 
 .metric-title {
@@ -94,16 +92,16 @@ stocks = {
     "Netflix": "NFLX",
     "AMD": "AMD",
     "Intel": "INTC",
-    "IBM": "IBM",
     "Adobe": "ADBE",
     "Oracle": "ORCL",
     "Salesforce": "CRM",
-    "PayPal": "PYPL",
-    "Uber": "UBER",
-    "Airbnb": "ABNB",
     "Visa": "V",
     "Mastercard": "MA",
-    "JPMorgan": "JPM"
+    "JPMorgan": "JPM",
+    "Coca-Cola": "KO",
+    "Pepsi": "PEP",
+    "Walmart": "WMT",
+    "Disney": "DIS"
 }
 
 company = st.sidebar.selectbox("Select Company", list(stocks.keys()))
@@ -116,22 +114,32 @@ ma_period = st.sidebar.slider("Moving Average Period", 10, 100, 20, 5)
 # LOAD DATA (SAFE)
 # ======================================================
 with st.spinner("Loading market data..."):
-    df = yf.download(ticker, period=period, auto_adjust=False)
+    df = yf.download(ticker, period=period)
 
-if df.empty or "Close" not in df:
+if df.empty:
     st.error("Unable to load market data.")
     st.stop()
 
 # ======================================================
-# DATA CLEANING (CRITICAL)
+# FIX DATE COLUMN (CRITICAL FIX)
 # ======================================================
 df = df.reset_index()
-df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-df = df.dropna(subset=["Date"])
 
+# Detect datetime column safely
+if "Date" not in df.columns:
+    if "Datetime" in df.columns:
+        df.rename(columns={"Datetime": "Date"}, inplace=True)
+    else:
+        df.rename(columns={df.columns[0]: "Date"}, inplace=True)
+
+df["Date"] = pd.to_datetime(df["Date"])
 df["Close"] = df["Close"].astype(float)
+
 df = df.sort_values("Date")
 
+# ======================================================
+# INDICATORS (SAFE 1D SERIES)
+# ======================================================
 df["RSI"] = ta.momentum.RSIIndicator(df["Close"]).rsi()
 df["MA"] = df["Close"].rolling(ma_period).mean()
 
@@ -160,7 +168,7 @@ metric(c2, "RSI", f"{last_rsi:.1f}")
 metric(c3, "Data Date", last_date)
 
 # ======================================================
-# DECISION ENGINE
+# BUY / SELL LOGIC
 # ======================================================
 if last_rsi < 30:
     decision = "BUY"
@@ -180,7 +188,7 @@ Decision: {decision}<br>
 """, unsafe_allow_html=True)
 
 # ======================================================
-# GRAPH (FIXED & VISIBLE)
+# GRAPH (GUARANTEED VISIBLE)
 # ======================================================
 st.subheader("Price Trend with Moving Average")
 
@@ -189,25 +197,24 @@ y_max = df["Close"].max() * 1.03
 
 fig = go.Figure()
 
-fig.add_trace(go.Scattergl(
+fig.add_trace(go.Scatter(
     x=df["Date"],
     y=df["Close"],
     name="Closing Price",
     line=dict(color="#16a34a", width=3)
 ))
 
-fig.add_trace(go.Scattergl(
+fig.add_trace(go.Scatter(
     x=df["Date"],
     y=df["MA"],
     name=f"{ma_period}-Day Moving Average",
-    line=dict(color="#f97316", width=3)
+    line=dict(color="#f59e0b", width=3)
 ))
 
 fig.update_layout(
     height=520,
     plot_bgcolor="white",
     paper_bgcolor="white",
-    margin=dict(l=50, r=50, t=40, b=40),
     yaxis=dict(range=[y_min, y_max]),
     hovermode="x unified"
 )
@@ -215,12 +222,12 @@ fig.update_layout(
 st.plotly_chart(fig, use_container_width=True)
 
 st.info(
-    "This chart displays the historical closing price along with a moving average. "
-    "Use the hover tool to inspect prices on specific dates."
+    "This chart displays the historical closing price and a moving average. "
+    "Hover over the chart to view exact prices by date."
 )
 
 # ======================================================
 # FOOTER
 # ======================================================
 st.markdown("---")
-st.caption("GreenQuant | Stable Release")
+st.caption("GreenQuant | Stable Cloud Release")
