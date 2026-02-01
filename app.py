@@ -1,6 +1,5 @@
 import streamlit as st
 import yfinance as yf
-import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import ta
@@ -15,18 +14,22 @@ st.set_page_config(
 )
 
 # ======================================================
-# GLOBAL GREEN THEME (NO WHITE ANYWHERE)
+# FORCE GREEN BACKGROUND (NO WHITE ANYWHERE)
 # ======================================================
 st.markdown("""
 <style>
-html, body, [class*="css"] {
-    background: linear-gradient(180deg, #064e3b 0%, #022c22 40%, #021f18 100%);
+html, body, #root, .stApp {
+    background: linear-gradient(180deg, #064e3b 0%, #022c22 50%, #021f18 100%) !important;
     color: #ecfdf5;
-    font-family: "Inter", sans-serif;
+    font-family: Inter, sans-serif;
 }
 
 section.main > div {
-    background: transparent;
+    background: transparent !important;
+}
+
+header {
+    background: transparent !important;
 }
 
 /* HERO */
@@ -34,23 +37,21 @@ section.main > div {
     background: linear-gradient(135deg, #16a34a, #065f46);
     padding: 32px;
     border-radius: 22px;
-    box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    box-shadow: 0 18px 40px rgba(0,0,0,0.4);
 }
 
 /* METRIC CARDS */
 .metric {
     background: rgba(6,95,70,0.55);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255,255,255,0.15);
-    padding: 20px;
+    backdrop-filter: blur(8px);
     border-radius: 18px;
+    padding: 20px;
     text-align: center;
 }
 
 .metric-title {
     font-size: 13px;
     color: #bbf7d0;
-    letter-spacing: 0.4px;
 }
 
 .metric-value {
@@ -69,18 +70,10 @@ section.main > div {
     font-weight: 600;
 }
 
-/* CARDS */
-.card {
-    background: rgba(6,95,70,0.55);
-    border-radius: 18px;
-    padding: 22px;
-    border: 1px solid rgba(255,255,255,0.15);
-}
-
 /* SIDEBAR */
 [data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #022c22, #021f18);
-    border-right: 1px solid rgba(255,255,255,0.1);
+    background: linear-gradient(180deg, #022c22, #021f18) !important;
+    border-right: 1px solid rgba(255,255,255,0.15);
 }
 
 /* TABS */
@@ -105,8 +98,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.caption(
-    "This platform is designed for educational and analytical purposes only. "
-    "It does not provide investment advice."
+    "This platform is intended strictly for educational and analytical purposes. "
+    "It does not provide financial or investment advice."
 )
 
 st.markdown("---")
@@ -151,8 +144,13 @@ df["MA"] = close.rolling(ma_period).mean()
 df.dropna(inplace=True)
 
 # ======================================================
-# METRICS
+# METRICS (SAFE FLOAT CASTING)
 # ======================================================
+last_price = float(df["Close"].iloc[-1])
+last_rsi = float(df["RSI"].iloc[-1])
+last_macd = float(df["MACD"].iloc[-1])
+last_date = df.index[-1].date()
+
 c1, c2, c3, c4 = st.columns(4)
 
 def metric(col, title, value):
@@ -164,24 +162,24 @@ def metric(col, title, value):
         </div>
         """, unsafe_allow_html=True)
 
-metric(c1, "Last Price", f"{df['Close'].iloc[-1]:.2f}")
-metric(c2, "RSI", f"{df['RSI'].iloc[-1]:.1f}")
-metric(c3, "MACD", f"{df['MACD'].iloc[-1]:.2f}")
-metric(c4, "Data Date", df.index[-1].date())
+metric(c1, "Last Price", f"{last_price:.2f}")
+metric(c2, "Relative Strength Index", f"{last_rsi:.1f}")
+metric(c3, "MACD Value", f"{last_macd:.2f}")
+metric(c4, "Data Date", last_date)
 
 # ======================================================
 # MARKET CONDITION
 # ======================================================
-if df["RSI"].iloc[-1] < 30:
-    condition = "Market is showing oversold behavior."
-elif df["RSI"].iloc[-1] > 70:
-    condition = "Market is showing overbought behavior."
+if last_rsi < 30:
+    condition = "Oversold conditions detected"
+elif last_rsi > 70:
+    condition = "Overbought conditions detected"
 else:
-    condition = "Market momentum appears neutral."
+    condition = "Market momentum appears neutral"
 
 st.markdown(f"""
 <div class="banner">
-    Market Status: {condition}
+    Market Condition: {condition}
 </div>
 """, unsafe_allow_html=True)
 
@@ -212,17 +210,17 @@ with tab1:
 
     st.markdown("""
     **What this chart shows:**  
-    The line chart represents the historical closing price of the selected stock.  
-    The moving average smooths price fluctuations and helps identify the overall trend direction.
+    The chart displays the historical closing price of the selected equity.
+    The moving average smooths short-term price fluctuations and helps identify the overall trend direction.
     """)
 
 # ======================================================
 # TAB 2: INDICATORS
 # ======================================================
 with tab2:
-    c1, c2 = st.columns(2)
+    col1, col2 = st.columns(2)
 
-    with c1:
+    with col1:
         fig, ax = plt.subplots(figsize=(5,4))
         ax.plot(df.index, df["RSI"], color="#34d399")
         ax.axhline(70, linestyle="--", color="gray")
@@ -231,13 +229,12 @@ with tab2:
         ax.grid(alpha=0.3)
         st.pyplot(fig)
 
-        st.markdown("""
-        **RSI Interpretation:**  
-        RSI measures momentum.  
-        Values below 30 indicate oversold conditions, while values above 70 indicate overbought conditions.
-        """)
+        st.markdown(
+            "RSI measures momentum. Values below 30 indicate oversold conditions, "
+            "while values above 70 indicate overbought conditions."
+        )
 
-    with c2:
+    with col2:
         fig, ax = plt.subplots(figsize=(5,4))
         ax.plot(df.index, df["MACD"], color="#bbf7d0")
         ax.axhline(0, linestyle="--", color="gray")
@@ -245,25 +242,24 @@ with tab2:
         ax.grid(alpha=0.3)
         st.pyplot(fig)
 
-        st.markdown("""
-        **MACD Interpretation:**  
-        MACD reflects trend strength and momentum.  
-        Positive values suggest upward momentum, while negative values indicate downward momentum.
-        """)
+        st.markdown(
+            "MACD reflects trend strength and direction. "
+            "Positive values suggest upward momentum, while negative values indicate downward momentum."
+        )
 
 # ======================================================
 # TAB 3: SIGNAL EXPLANATION
 # ======================================================
 with tab3:
     st.markdown("""
-    <div class="card">
+    <div class="metric">
         <h3>Analytical Signal Summary</h3>
         <p>
-        The current assessment is based on momentum indicators rather than predictive forecasting.
-        RSI and MACD together help identify potential trend continuation or reversal zones.
+        The current assessment is derived from momentum indicators such as RSI and MACD.
+        These indicators help identify potential trend continuation or reversal zones.
         </p>
         <p>
-        This signal should be used strictly for educational analysis and not as a trading directive.
+        This signal is intended strictly for analytical and educational use.
         </p>
     </div>
     """, unsafe_allow_html=True)
