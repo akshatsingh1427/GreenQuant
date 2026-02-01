@@ -15,21 +15,21 @@ st.set_page_config(
 )
 
 # ======================================================
-# THEME (LIGHT GREEN)
+# LIGHT GREEN THEME
 # ======================================================
 st.markdown("""
 <style>
 html, body, .stApp {
-    background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%);
+    background: linear-gradient(180deg, #ecfdf5, #d1fae5);
     color: #064e3b;
-    font-family: Arial, sans-serif;
+    font-family: "Segoe UI", sans-serif;
 }
 
 .hero {
-    background: linear-gradient(135deg, #a7f3d0, #6ee7b7);
-    padding: 32px;
+    background: linear-gradient(135deg, #6ee7b7, #34d399);
+    padding: 30px;
     border-radius: 22px;
-    box-shadow: 0 18px 35px rgba(0,0,0,0.12);
+    box-shadow: 0 12px 28px rgba(0,0,0,0.12);
 }
 
 .metric {
@@ -37,7 +37,7 @@ html, body, .stApp {
     border-radius: 18px;
     padding: 18px;
     text-align: center;
-    box-shadow: 0 10px 22px rgba(0,0,0,0.08);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.08);
 }
 
 .metric-title {
@@ -48,7 +48,7 @@ html, body, .stApp {
 .metric-value {
     font-size: 26px;
     font-weight: 700;
-    color: #16a34a;
+    color: #15803d;
 }
 
 .banner {
@@ -67,18 +67,18 @@ html, body, .stApp {
 """, unsafe_allow_html=True)
 
 # ======================================================
-# HERO
+# HEADER
 # ======================================================
 st.markdown("""
 <div class="hero">
     <h1>GreenQuant</h1>
-    <p>Market Data • Technical Analysis • Intelligent Decision Support</p>
+    <p>Real-Time Market Data • Technical Analysis • Decision Support</p>
 </div>
 """, unsafe_allow_html=True)
 
 st.caption(
-    "This application is for educational and analytical purposes only. "
-    "It does not provide financial or investment advice."
+    "This platform is designed strictly for educational and analytical purposes. "
+    "It does not constitute financial advice."
 )
 
 st.markdown("---")
@@ -115,21 +115,16 @@ if df.empty or "Close" not in df.columns:
     st.stop()
 
 # ======================================================
-# ✅ CRITICAL FIX — FORCE 1-D CLOSE SERIES
+# DATA SANITIZATION (CRITICAL)
 # ======================================================
-close = df["Close"].to_numpy().ravel()
-close = pd.Series(close, index=df.index, name="Close")
+close = pd.Series(df["Close"].to_numpy().flatten(), index=df.index)
 
-# ======================================================
-# INDICATORS (SAFE)
-# ======================================================
-df["RSI"] = ta.momentum.RSIIndicator(close=close).rsi()
-df["MACD"] = ta.trend.MACD(close=close).macd()
+df = df.assign(Close=close)
+df["RSI"] = ta.momentum.RSIIndicator(close).rsi()
+df["MACD"] = ta.trend.MACD(close).macd()
 df["MA"] = close.rolling(ma_period).mean()
-df["Returns"] = close.pct_change()
-df["Volatility"] = df["Returns"].rolling(20).std()
 
-df.dropna(inplace=True)
+df = df.dropna()
 
 # ======================================================
 # METRICS
@@ -137,7 +132,6 @@ df.dropna(inplace=True)
 last_price = float(df["Close"].iloc[-1])
 last_rsi = float(df["RSI"].iloc[-1])
 last_macd = float(df["MACD"].iloc[-1])
-last_vol = float(df["Volatility"].iloc[-1]) * 100
 last_date = df.index[-1].date()
 
 c1, c2, c3, c4 = st.columns(4)
@@ -154,10 +148,10 @@ def metric(col, title, value):
 metric(c1, "Last Price", f"{last_price:.2f}")
 metric(c2, "RSI", f"{last_rsi:.1f}")
 metric(c3, "MACD", f"{last_macd:.2f}")
-metric(c4, "Volatility (20d)", f"{last_vol:.2f}%")
+metric(c4, "Data Date", last_date)
 
 # ======================================================
-# AI BUY / HOLD / SELL (EXPLAINABLE)
+# AI-STYLE DECISION ENGINE
 # ======================================================
 score = 0
 if last_rsi < 30: score += 1
@@ -167,10 +161,10 @@ if last_price > df["MA"].iloc[-1]: score += 1
 
 if score >= 2:
     decision = "BUY"
-    explanation = "Momentum and trend indicators suggest potential upside."
+    explanation = "Momentum and trend indicators align positively."
 elif score <= -1:
     decision = "SELL"
-    explanation = "Momentum indicators suggest downside risk."
+    explanation = "Momentum indicators indicate downside risk."
 else:
     decision = "HOLD"
     explanation = "Indicators are mixed, suggesting neutral conditions."
@@ -179,66 +173,72 @@ confidence = min(abs(score) * 25 + 25, 90)
 
 st.markdown(f"""
 <div class="banner">
-    AI Recommendation: <strong>{decision}</strong> | Confidence: {confidence:.0f}%  
+    Recommendation: <strong>{decision}</strong> | Confidence: {confidence:.0f}%  
     <br>{explanation}
 </div>
 """, unsafe_allow_html=True)
 
 # ======================================================
-# TABS
+# INTERACTIVE PRICE GRAPH (FIXED)
 # ======================================================
-tab1, tab2 = st.tabs(["Price Analysis", "Technical Indicators"])
+st.subheader("Price Trend with Moving Average")
 
-# ======================================================
-# PRICE GRAPH (WILL ALWAYS SHOW)
-# ======================================================
-with tab1:
-    fig = go.Figure()
+fig = go.Figure()
 
-    fig.add_trace(go.Scatter(
-        x=df.index,
-        y=df["Close"],
-        name="Closing Price",
-        line=dict(color="#16a34a", width=2),
-        hovertemplate="Date: %{x}<br>Price: %{y:.2f}<extra></extra>"
-    ))
+fig.add_trace(go.Scatter(
+    x=df.index,
+    y=df["Close"],
+    mode="lines",
+    name="Closing Price",
+    line=dict(color="#16a34a", width=2),
+    hovertemplate="Date: %{x}<br>Price: %{y:.2f}<extra></extra>"
+))
 
-    fig.add_trace(go.Scatter(
-        x=df.index,
-        y=df["MA"],
-        name=f"{ma_period}-Day Moving Average",
-        line=dict(color="#fb7185", width=2),
-        hovertemplate="Date: %{x}<br>MA: %{y:.2f}<extra></extra>"
-    ))
+fig.add_trace(go.Scatter(
+    x=df.index,
+    y=df["MA"],
+    mode="lines",
+    name=f"{ma_period}-Day Moving Average",
+    line=dict(color="#f97316", width=2),
+    hovertemplate="Date: %{x}<br>MA: %{y:.2f}<extra></extra>"
+))
 
-    fig.update_layout(
-        height=520,
-        hovermode="x unified",
-        plot_bgcolor="white",
-        paper_bgcolor="white",
-        margin=dict(l=40, r=40, t=40, b=40)
-    )
+fig.update_layout(
+    autosize=True,
+    height=520,
+    hovermode="x unified",
+    plot_bgcolor="white",
+    paper_bgcolor="white",
+    yaxis=dict(
+        range=[
+            df["Close"].min() * 0.95,
+            df["Close"].max() * 1.05
+        ]
+    ),
+    margin=dict(l=40, r=40, t=40, b=40)
+)
 
-    st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, use_container_width=True)
 
-    st.info(
-        "This interactive chart shows the historical closing price and its moving average. "
-        "Hover to inspect values, zoom to analyze specific periods."
-    )
+st.info(
+    "This chart displays the historical closing price along with its moving average. "
+    "Hover over the graph to inspect exact values and analyze trend behavior."
+)
 
 # ======================================================
 # INDICATORS
 # ======================================================
-with tab2:
-    col1, col2 = st.columns(2)
+st.subheader("Technical Indicators")
 
-    with col1:
-        st.subheader("Relative Strength Index (RSI)")
-        st.line_chart(df["RSI"])
+col1, col2 = st.columns(2)
 
-    with col2:
-        st.subheader("MACD Indicator")
-        st.line_chart(df["MACD"])
+with col1:
+    st.line_chart(df["RSI"])
+    st.caption("RSI measures momentum and overbought/oversold conditions.")
+
+with col2:
+    st.line_chart(df["MACD"])
+    st.caption("MACD reflects trend direction and momentum strength.")
 
 # ======================================================
 # FOOTER
