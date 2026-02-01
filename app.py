@@ -19,62 +19,115 @@ except:
 # PAGE CONFIG
 # ======================================================
 st.set_page_config(
-    page_title="GreenQuant • AI Stock Dashboard",
+    page_title="GreenQuant | Stock Intelligence Dashboard",
     page_icon="📈",
     layout="wide"
 )
 
 # ======================================================
-# THEME CSS
+# PROFESSIONAL DARK THEME
 # ======================================================
 st.markdown("""
 <style>
-body { background-color: #0b1f17; }
+html, body, [class*="css"] {
+    background-color: #0f1117;
+    color: #e5e7eb;
+    font-family: Inter, sans-serif;
+}
+
+section.main > div {
+    background-color: #0f1117;
+}
 
 .hero {
-    background: linear-gradient(135deg, #00ff9c, #00c46a);
-    padding: 25px;
-    border-radius: 22px;
-    color: black;
+    background: #111827;
+    padding: 28px;
+    border-radius: 18px;
+    border: 1px solid #1f2937;
+}
+
+.hero h1 {
+    margin-bottom: 4px;
+}
+
+.hero p {
+    color: #9ca3af;
+    margin-top: 0;
 }
 
 .metric {
-    background: linear-gradient(145deg, #0f2e22, #071a13);
+    background: #111827;
     padding: 18px;
-    border-radius: 16px;
+    border-radius: 14px;
+    border: 1px solid #1f2937;
     text-align: center;
-    box-shadow: 0 0 18px rgba(0,255,156,0.25);
 }
 
-.metric-title { color: #9fffdc; font-size: 14px; }
-.metric-value { color: #00ff9c; font-size: 28px; font-weight: 800; }
+.metric-title {
+    color: #9ca3af;
+    font-size: 13px;
+    letter-spacing: 0.4px;
+}
+
+.metric-value {
+    color: #34d399;
+    font-size: 26px;
+    font-weight: 700;
+}
 
 .card {
-    background: #0f2e22;
+    background: #111827;
     padding: 20px;
-    border-radius: 18px;
-    box-shadow: 0 0 20px rgba(0,255,156,0.2);
+    border-radius: 16px;
+    border: 1px solid #1f2937;
+}
+
+.status {
+    background: #111827;
+    border: 1px solid #1f2937;
+    border-radius: 14px;
+    padding: 14px;
+    text-align: center;
+    font-size: 16px;
+}
+
+[data-testid="stSidebar"] {
+    background-color: #0b0d12;
+    border-right: 1px solid #1f2937;
+}
+
+button[data-baseweb="tab"] {
+    color: #9ca3af;
+}
+
+button[data-baseweb="tab"][aria-selected="true"] {
+    color: #34d399;
+    border-bottom: 2px solid #34d399;
 }
 </style>
 """, unsafe_allow_html=True)
 
 # ======================================================
-# HERO HEADER
+# HEADER
 # ======================================================
 st.markdown("""
 <div class="hero">
-    <h1>📈 GreenQuant</h1>
-    <h4>Explore Markets • Visualize Trends • AI Insights</h4>
+    <h1>GreenQuant</h1>
+    <p>Market Data • Technical Analysis • Predictive Insights</p>
 </div>
 """, unsafe_allow_html=True)
 
-st.caption("⚠️ Educational use only. Not financial advice.")
+st.caption(
+    "This application is intended strictly for educational and demonstration purposes. "
+    "It does not constitute financial advice."
+)
+
 st.markdown("---")
 
 # ======================================================
 # SIDEBAR
 # ======================================================
-st.sidebar.header("⚙️ Controls")
+st.sidebar.header("Application Controls")
 
 stocks = {
     "Apple (AAPL)": "AAPL",
@@ -83,37 +136,37 @@ stocks = {
     "Amazon (AMZN)": "AMZN",
     "Tesla (TSLA)": "TSLA",
     "NVIDIA (NVDA)": "NVDA",
-    "Meta (META)": "META",
-    "Reliance (RELIANCE.NS)": "RELIANCE.NS",
-    "TCS (TCS.NS)": "TCS.NS",
+    "Meta Platforms (META)": "META",
+    "Reliance Industries (RELIANCE.NS)": "RELIANCE.NS",
+    "Tata Consultancy Services (TCS.NS)": "TCS.NS",
     "Infosys (INFY.NS)": "INFY.NS"
 }
 
-stock_name = st.sidebar.selectbox("📌 Select Stock", list(stocks.keys()))
+stock_name = st.sidebar.selectbox("Equity Selection", list(stocks.keys()))
 ticker = stocks[stock_name]
 
-period = st.sidebar.selectbox("📅 Time Range", ["6mo", "1y", "2y", "5y"])
-show_intraday = st.sidebar.checkbox("⏱ Show Intraday (Today)", True)
-use_ai = st.sidebar.checkbox("🤖 Use AI Model", True)
+period = st.sidebar.selectbox("Historical Time Range", ["6mo", "1y", "2y", "5y"])
+show_intraday = st.sidebar.checkbox("Display Intraday Data (Today)", True)
+use_ai = st.sidebar.checkbox("Enable Predictive Model", True)
 
 ma_period = st.sidebar.slider(
-    "📊 Moving Average Period",
+    "Moving Average Period",
     min_value=5,
     max_value=100,
     value=20,
     step=5
 )
 
-st.sidebar.caption("GreenQuant v1.1")
+st.sidebar.caption("GreenQuant Version 1.2")
 
 # ======================================================
 # FETCH DATA
 # ======================================================
-with st.spinner("Fetching market data..."):
+with st.spinner("Loading market data..."):
     df = yf.download(ticker, period=period)
 
 if df.empty:
-    st.error("❌ Failed to fetch data")
+    st.error("Market data could not be retrieved.")
     st.stop()
 
 # ======================================================
@@ -146,28 +199,24 @@ def metric(col, title, value):
         </div>
         """, unsafe_allow_html=True)
 
-metric(c1, "Price", f"{latest_price:.2f}")
-metric(c2, "RSI", f"{latest_rsi:.1f}")
-metric(c3, "MACD", f"{latest_macd:.3f}")
-metric(c4, "Date", latest_date)
+metric(c1, "Last Traded Price", f"{latest_price:.2f}")
+metric(c2, "Relative Strength Index", f"{latest_rsi:.1f}")
+metric(c3, "MACD Value", f"{latest_macd:.3f}")
+metric(c4, "Data As Of", latest_date)
 
 # ======================================================
-# MARKET MOOD (FUN UX)
+# MARKET CONDITION
 # ======================================================
 if latest_rsi < 30:
-    mood = "😰 Oversold"
-    mood_color = "#00ff9c"
+    condition = "Oversold conditions detected"
 elif latest_rsi > 70:
-    mood = "😤 Overbought"
-    mood_color = "#ff4d4d"
+    condition = "Overbought conditions detected"
 else:
-    mood = "😐 Balanced"
-    mood_color = "#facc15"
+    condition = "Market conditions appear neutral"
 
 st.markdown(f"""
-<div style="padding:15px; border-radius:15px;
-background:{mood_color}; color:black; text-align:center;">
-    <h3>Market Mood: {mood}</h3>
+<div class="status">
+    Market Condition: <b>{condition}</b>
 </div>
 """, unsafe_allow_html=True)
 
@@ -175,29 +224,30 @@ background:{mood_color}; color:black; text-align:center;">
 # TABS
 # ======================================================
 tab1, tab2, tab3, tab4 = st.tabs([
-    "📈 Price",
-    "📊 Indicators",
-    "🤖 Signal",
-    "ℹ️ About"
+    "Price Analysis",
+    "Technical Indicators",
+    "Signal Assessment",
+    "About"
 ])
 
 # ======================================================
 # TAB 1: PRICE
 # ======================================================
 with tab1:
+    plt.style.use("dark_background")
     fig, ax = plt.subplots(figsize=(12, 5))
-    ax.plot(df.index, df["Close"], label="Close", linewidth=2)
-    ax.plot(df.index, df["MA_USER"], label=f"MA {ma_period}", linewidth=2)
+    ax.plot(df.index, df["Close"], label="Closing Price", linewidth=2)
+    ax.plot(df.index, df["MA_USER"], label=f"{ma_period}-Period Moving Average", linewidth=2)
     ax.legend()
-    ax.grid(alpha=0.3)
+    ax.grid(color="#1f2937", alpha=0.6)
     st.pyplot(fig)
 
     if show_intraday:
         intraday = yf.download(ticker, period="1d", interval="5m")
         if not intraday.empty:
             fig_i, ax_i = plt.subplots(figsize=(12, 4))
-            ax_i.plot(intraday.index, intraday["Close"], color="green")
-            ax_i.grid(alpha=0.3)
+            ax_i.plot(intraday.index, intraday["Close"])
+            ax_i.grid(color="#1f2937", alpha=0.6)
             st.pyplot(fig_i)
 
 # ======================================================
@@ -208,40 +258,41 @@ with tab2:
 
     with c1:
         fig_rsi, ax = plt.subplots(figsize=(5,4))
-        ax.plot(df.index, df["RSI"], color="orange")
+        ax.plot(df.index, df["RSI"])
         ax.axhline(70, linestyle="--")
         ax.axhline(30, linestyle="--")
-        ax.set_title("RSI")
+        ax.set_title("Relative Strength Index")
         st.pyplot(fig_rsi)
 
     with c2:
         fig_macd, ax = plt.subplots(figsize=(5,4))
-        ax.plot(df.index, df["MACD"], color="lime")
+        ax.plot(df.index, df["MACD"])
         ax.axhline(0, linestyle="--")
-        ax.set_title("MACD")
+        ax.set_title("MACD Indicator")
         st.pyplot(fig_macd)
 
 # ======================================================
 # TAB 3: SIGNAL
 # ======================================================
 with tab3:
-    signal = "➖ NEUTRAL"
+    signal = "Neutral"
     confidence = 20
 
     if latest_rsi < 30:
-        signal = "📈 UP (Oversold)"
+        signal = "Potential Upside Signal"
         confidence = 40
     elif latest_rsi > 70:
-        signal = "📉 DOWN (Overbought)"
+        signal = "Potential Downside Signal"
         confidence = 40
 
     st.markdown(f"""
     <div class="card">
-        <h2>{signal}</h2>
-        <p><b>Confidence:</b> {confidence}%</p>
+        <h3>Signal Summary</h3>
+        <p><b>Assessment:</b> {signal}</p>
+        <p><b>Confidence Level:</b> {confidence}%</p>
         <p>
-        RSI: {latest_rsi:.1f}<br>
-        MACD Momentum: {"Positive" if latest_macd > 0 else "Negative"}
+        The signal assessment is derived from momentum indicators, including
+        Relative Strength Index and MACD trend behavior.
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -253,19 +304,21 @@ with tab4:
     st.markdown("""
 ### About GreenQuant
 
-GreenQuant is an **interactive stock analysis dashboard** designed for learning.
+GreenQuant is a stock market analytics dashboard designed to demonstrate
+how technical indicators and predictive models can be integrated into
+interactive financial applications.
 
-✨ What makes it fun:
-- Live controls (sliders & toggles)
-- Market mood indicators
-- Interactive charts
-- Clean visual design
+**Key Capabilities**
+- Historical and intraday price visualization
+- Momentum-based technical indicators
+- Optional predictive modeling
+- Cloud-deployable architecture
 
-⚠️ Not for real trading.
+This platform is intended solely for academic and learning purposes.
 """)
 
 # ======================================================
 # FOOTER
 # ======================================================
 st.markdown("---")
-st.caption("GreenQuant • Interactive Edition")
+st.caption("GreenQuant | Professional Edition")
