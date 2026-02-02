@@ -1,6 +1,5 @@
 import yfinance as yf
 
-# Choose a stock (Apple)
 ticker = "AAPL"
 
 df = yf.download(
@@ -11,3 +10,4 @@ df = yf.download(
 
 df.to_csv("data/stock_data.csv")
 print("Data downloaded and saved successfully")
+
