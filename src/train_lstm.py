@@ -4,7 +4,6 @@ import yfinance as yf
 from sklearn.preprocessing import MinMaxScaler
 import os
 
-# ================= CONFIG =================
 TICKER = "AAPL"
 START = "2015-01-01"
 END = "2024-01-01"
@@ -14,7 +13,6 @@ BATCH_SIZE = 32
 
 os.makedirs("models", exist_ok=True)
 
-# ================= DATA =================
 df = yf.download(TICKER, start=START, end=END)
 close = df["Close"].values.reshape(-1, 1)
 
@@ -29,7 +27,6 @@ for i in range(WINDOW, len(scaled)):
 X = np.array(X)
 y = np.array(y)
 
-# ================= MODEL =================
 model = tf.keras.Sequential([
     tf.keras.layers.Input(shape=(WINDOW, 1)),
     tf.keras.layers.LSTM(50, return_sequences=True),
@@ -51,7 +48,7 @@ model.fit(
     batch_size=BATCH_SIZE
 )
 
-# ================= SAVE WEIGHTS ONLY =================
 model.save_weights("models/lstm_weights.weights.h5")
 
 print("✅ Weights saved correctly")
+
