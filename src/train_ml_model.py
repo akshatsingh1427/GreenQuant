@@ -4,7 +4,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report
 
-# Load feature-engineered data
+
 df = pd.read_csv("data/stock_data.csv")
 
 # Clean again (safe)
@@ -53,3 +53,4 @@ y_pred = model.predict(X_test)
 # Evaluation
 print("Accuracy:", accuracy_score(y_test, y_pred))
 print(classification_report(y_test, y_pred))
+
