@@ -7,7 +7,7 @@ from sklearn.metrics import accuracy_score, classification_report
 
 df = pd.read_csv("data/stock_data.csv")
 
-# Clean again (safe)
+
 df = df.iloc[2:].reset_index(drop=True)
 df.columns = ["Date", "Close", "High", "Low", "Open", "Volume"]
 
@@ -53,4 +53,5 @@ y_pred = model.predict(X_test)
 # Evaluation
 print("Accuracy:", accuracy_score(y_test, y_pred))
 print(classification_report(y_test, y_pred))
+
 
