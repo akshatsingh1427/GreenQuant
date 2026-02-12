@@ -14,7 +14,6 @@ df.columns = ["Date", "Close", "High", "Low", "Open", "Volume"]
 for col in ["Close", "High", "Low", "Open", "Volume"]:
     df[col] = pd.to_numeric(df[col])
 
-# Recreate features (same as before)
 df["Return"] = df["Close"].pct_change()
 df["MA_5"] = df["Close"].rolling(5).mean()
 df["MA_10"] = df["Close"].rolling(10).mean()
@@ -53,5 +52,6 @@ y_pred = model.predict(X_test)
 # Evaluation
 print("Accuracy:", accuracy_score(y_test, y_pred))
 print(classification_report(y_test, y_pred))
+
 
 
