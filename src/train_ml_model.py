@@ -21,9 +21,7 @@ df["Volatility"] = df["Return"].rolling(5).std()
 df["Target"] = (df["Close"].shift(-1) > df["Close"]).astype(int)
 df.dropna(inplace=True)
 
-# =========================
-# ML DATASET
-# =========================
+
 
 features = ["Return", "MA_5", "MA_10", "Volatility"]
 X = df[features]
@@ -52,6 +50,7 @@ y_pred = model.predict(X_test)
 # Evaluation
 print("Accuracy:", accuracy_score(y_test, y_pred))
 print(classification_report(y_test, y_pred))
+
 
 
 
